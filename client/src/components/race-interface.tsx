@@ -12,6 +12,7 @@ interface RaceInterfaceProps {
   participants: RaceParticipant[];
   currentPlayerId: string;
   onLeaveRace: () => void;
+  onRaceUpdate?: (data: { race: Race; participants: RaceParticipant[] }) => void;
 }
 
 export function RaceInterface({ race, participants, currentPlayerId, onLeaveRace }: RaceInterfaceProps) {
@@ -50,7 +51,7 @@ export function RaceInterface({ race, participants, currentPlayerId, onLeaveRace
     };
 
     const handleRaceUpdate = (data: { race: Race; participants: RaceParticipant[] }) => {
-      console.log('Race update received:', data.race.status);
+      console.log('Race update received in interface:', data.race.status, 'participants:', data.participants.map(p => ({ name: p.playerName, progress: p.progress, wpm: p.wpm })));
       if (data.race.status === 'active' && !raceStarted) {
         setRaceStarted(true);
         setStartTime(Date.now());
@@ -165,9 +166,11 @@ export function RaceInterface({ race, participants, currentPlayerId, onLeaveRace
           {/* Players Progress */}
           <div className="space-y-3">
             {sortedParticipants.map((participant, index) => {
-              const progressPercentage = (participant.progress / race.textPassage.length) * 100;
+              const progressPercentage = Math.min(100, Math.max(0, (participant.progress / race.textPassage.length) * 100));
               const isCurrentPlayer = participant.playerId === currentPlayerId;
               const colorClass = getPlayerColor(index);
+              
+              console.log(`Player ${participant.playerName}: progress=${participant.progress}/${race.textPassage.length} = ${progressPercentage}%`);
               
               return (
                 <div key={participant.playerId} className="flex items-center space-x-4">
@@ -180,7 +183,8 @@ export function RaceInterface({ race, participants, currentPlayerId, onLeaveRace
                       style={{ width: `${progressPercentage}%` }}
                     />
                     <Car
-                      className={`absolute -right-1 -top-1 w-5 h-5 ${colorClass.replace('bg-', 'text-')}`}
+                      className={`absolute w-5 h-5 ${colorClass.replace('bg-', 'text-')}`}
+                      style={{ left: `calc(${progressPercentage}% - 10px)`, top: '-4px' }}
                     />
                   </div>
                   <div className="w-16 text-right text-sm font-medium">

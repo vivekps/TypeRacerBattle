@@ -39,9 +39,12 @@ export function useWebSocket() {
 
     socket.current.on('message', (message: WebSocketMessage) => {
       try {
+        console.log('Socket.IO message received:', message.type, message.data);
         const handler = messageHandlers.current.get(message.type);
         if (handler) {
           handler(message.data);
+        } else {
+          console.warn('No handler for message type:', message.type);
         }
       } catch (error) {
         console.error('Failed to handle Socket.IO message:', error);
