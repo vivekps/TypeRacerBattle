@@ -28,7 +28,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     let sentCount = 0;
     Array.from(io.sockets.sockets.entries()).forEach(([socketId, socket]) => {
       if (playerRaces.get(socketId) === raceId && socketId !== excludeSocketId) {
-        console.log(`Sending ${message.type} to socket ${socketId}`);
+        console.log(`Sending ${message.type} to socket ${socketId} for race ${raceId}`);
         // Emit both as 'message' and as the specific event type
         socket.emit('message', message);
         socket.emit(message.type, message.data);
@@ -193,6 +193,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
               return;
             }
             
+            // Update participant progress in storage
             await storage.updateParticipantProgress(raceId, playerId, progress, wpm, accuracy, errors);
             
             // Check if player finished
@@ -200,12 +201,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
               await storage.finishParticipant(raceId, playerId);
             }
             
-            // Broadcast progress to all players
+            // Get updated participants and broadcast to all players
             const participants = await storage.getRaceParticipants(raceId);
-            console.log(`Broadcasting race update to ${participants.length} participants`);
+            const updatedRace = await storage.getRace(raceId);
+            
+            console.log(`Broadcasting race update to ${participants.length} participants. Updated progress: ${participants.map(p => `${p.playerName}:${p.progress}`).join(', ')}`);
+            
             broadcastToRace(raceId, {
               type: 'race_update',
-              data: { race, participants }
+              data: { race: updatedRace, participants }
             });
             
             // Check if race is finished

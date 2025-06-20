@@ -20,6 +20,7 @@ export function RaceInterface({ race, participants, currentPlayerId, onLeaveRace
   const [startTime, setStartTime] = useState<number | null>(null);
   const [timeRemaining, setTimeRemaining] = useState(race.timeLimit);
   const [raceStarted, setRaceStarted] = useState(race.status === 'active');
+  const [lastUpdateTime, setLastUpdateTime] = useState(Date.now());
 
   // Update race status when race prop changes
   useEffect(() => {
@@ -52,6 +53,7 @@ export function RaceInterface({ race, participants, currentPlayerId, onLeaveRace
 
     const handleRaceUpdate = (data: { race: Race; participants: RaceParticipant[] }) => {
       console.log('Race update received in interface:', data.race.status, 'participants:', data.participants.map(p => ({ name: p.playerName, progress: p.progress, wpm: p.wpm })));
+      // Trigger a re-render by updating the participants hash dependency
       if (data.race.status === 'active' && !raceStarted) {
         setRaceStarted(true);
         setStartTime(Date.now());
@@ -59,6 +61,8 @@ export function RaceInterface({ race, participants, currentPlayerId, onLeaveRace
           textareaRef.current.focus();
         }
       }
+      // Force re-render by updating timestamp
+      setLastUpdateTime(Date.now());
     };
 
     addMessageHandler('race_started', handleRaceStarted);
@@ -96,7 +100,9 @@ export function RaceInterface({ race, participants, currentPlayerId, onLeaveRace
       progress: analysis.stats.progress,
       wpm,
       accuracy: analysis.stats.accuracy,
-      errors: analysis.stats.errors
+      errors: analysis.stats.errors,
+      typedLength: typedText.length,
+      timeElapsed
     });
 
     sendMessage({
@@ -131,6 +137,9 @@ export function RaceInterface({ race, participants, currentPlayerId, onLeaveRace
   
   // Add dependency to force re-render when participants change
   const participantsHash = participants.map(p => `${p.playerId}:${p.progress}:${p.wpm}`).join('|');
+  
+  // Use lastUpdateTime to force re-render
+  const renderKey = `${participantsHash}-${lastUpdateTime}`;
 
   return (
     <div className="space-y-6">
@@ -167,7 +176,7 @@ export function RaceInterface({ race, participants, currentPlayerId, onLeaveRace
           </div>
 
           {/* Players Progress */}
-          <div className="space-y-3" key={`progress-${Date.now()}`}>
+          <div className="space-y-3" key={renderKey}>
             {sortedParticipants.map((participant, index) => {
               const progressPercentage = Math.min(100, Math.max(0, (participant.progress / race.textPassage.length) * 100));
               const isCurrentPlayer = participant.playerId === currentPlayerId;
@@ -176,7 +185,7 @@ export function RaceInterface({ race, participants, currentPlayerId, onLeaveRace
               console.log(`RENDERING Player ${participant.playerName}: progress=${participant.progress}/${race.textPassage.length} = ${progressPercentage}% (timestamp: ${Date.now()})`);
               
               return (
-                <div key={`${participant.playerId}-${participant.progress}`} className="flex items-center space-x-4">
+                <div key={`${participant.playerId}-${participant.progress}-${lastUpdateTime}`} className="flex items-center space-x-4">
                   <div className={`w-24 text-sm font-medium truncate ${isCurrentPlayer ? 'text-blue-600' : ''}`}>
                     {isCurrentPlayer ? 'You' : participant.playerName}
                   </div>
