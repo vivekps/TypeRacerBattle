@@ -17,6 +17,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   
   // Track connections
   const playerRaces = new Map<string, number>(); // socketId -> raceId
+  const playerIds = new Map<string, string>(); // socketId -> playerId
   
   // Generate unique player ID
   function generatePlayerId(): string {
@@ -103,15 +104,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
   
   io.on('connection', (socket) => {
     const playerId = generatePlayerId();
+    playerIds.set(socket.id, playerId);
     console.log(`Socket connected: ${playerId} (${socket.id})`);
     
     socket.on('message', async (message: WebSocketMessage) => {
+      const currentPlayerId = playerIds.get(socket.id) || playerId;
       try {
         
         switch (message.type) {
           case 'join_race': {
             const { raceId, playerName } = message.data;
-            console.log(`Player ${playerId} (${playerName}) attempting to join race ${raceId}`);
+            console.log(`Player ${currentPlayerId} (${playerName}) attempting to join race ${raceId}`);
             
             // Check if race exists and is joinable
             const race = await storage.getRace(raceId);
@@ -137,7 +140,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
             // Add participant
             const participant = await storage.addParticipant({
               raceId,
-              playerId,
+              playerId: currentPlayerId,
               playerName
             });
             
@@ -173,19 +176,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
           case 'leave_race': {
             const { raceId } = message.data;
             
-            await storage.removeParticipant(raceId, playerId);
+            await storage.removeParticipant(raceId, currentPlayerId);
             playerRaces.delete(socket.id);
             
             broadcastToRace(raceId, {
               type: 'player_left',
-              data: { raceId, playerId }
+              data: { raceId, playerId: currentPlayerId }
             });
             break;
           }
           
           case 'typing_update': {
             const { raceId, progress, wpm, accuracy, errors } = message.data;
-            console.log(`Typing update from ${playerId}: progress=${progress}, wpm=${wpm}, accuracy=${accuracy}`);
+            console.log(`Typing update from ${currentPlayerId}: progress=${progress}, wpm=${wpm}, accuracy=${accuracy}`);
             
             const race = await storage.getRace(raceId);
             if (!race || race.status !== "active") {
@@ -195,13 +198,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
             
             try {
               // Update participant progress in storage
-              await storage.updateParticipantProgress(raceId, playerId, progress, wpm, accuracy, errors);
-              console.log(`Successfully updated progress for ${playerId}: ${progress} chars, ${wpm} WPM`);
+              await storage.updateParticipantProgress(raceId, currentPlayerId, progress, wpm, accuracy, errors);
+              console.log(`Successfully updated progress for ${currentPlayerId}: ${progress} chars, ${wpm} WPM`);
               
               // Check if player finished
               if (progress >= race.textPassage.length) {
-                await storage.finishParticipant(raceId, playerId);
-                console.log(`Player ${playerId} finished the race`);
+                await storage.finishParticipant(raceId, currentPlayerId);
+                console.log(`Player ${currentPlayerId} finished the race`);
               }
               
               // Get updated participants and broadcast to all players
