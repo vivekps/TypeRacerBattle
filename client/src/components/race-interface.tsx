@@ -86,10 +86,17 @@ export function RaceInterface({ race, participants, currentPlayerId, onLeaveRace
 
   // Send typing updates
   useEffect(() => {
-    if (!raceStarted || !startTime) return;
+    if (!raceStarted || !startTime || race.status !== 'active') return;
 
     const timeElapsed = (Date.now() - startTime) / 1000;
     const wpm = calculateWPM(analysis.stats.progress, timeElapsed);
+
+    console.log('Sending typing update:', {
+      progress: analysis.stats.progress,
+      wpm,
+      accuracy: analysis.stats.accuracy,
+      errors: analysis.stats.errors
+    });
 
     sendMessage({
       type: 'typing_update',
@@ -101,7 +108,7 @@ export function RaceInterface({ race, participants, currentPlayerId, onLeaveRace
         errors: analysis.stats.errors,
       },
     });
-  }, [typedText, raceStarted, startTime, race.id, sendMessage, analysis.stats]);
+  }, [typedText, raceStarted, startTime, race.id, race.status, sendMessage, analysis.stats]);
 
   const handleTextChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     if (!raceStarted) return;

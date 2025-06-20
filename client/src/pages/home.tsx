@@ -23,6 +23,7 @@ export default function Home() {
 
   useEffect(() => {
     const handleRaceUpdate = (data: { race: Race; participants: RaceParticipant[] }) => {
+      console.log('Race update received:', data.race.status, 'participants:', data.participants.length);
       setCurrentRace(data.race);
       setParticipants(data.participants);
       

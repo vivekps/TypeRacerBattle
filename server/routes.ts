@@ -178,9 +178,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
           
           case 'typing_update': {
             const { raceId, progress, wpm, accuracy, errors } = message.data;
+            console.log(`Typing update from ${playerId}: progress=${progress}, wpm=${wpm}, accuracy=${accuracy}`);
             
             const race = await storage.getRace(raceId);
             if (!race || race.status !== "active") {
+              console.log(`Typing update rejected: race status is ${race?.status}`);
               return;
             }
             
@@ -193,6 +195,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
             
             // Broadcast progress to all players
             const participants = await storage.getRaceParticipants(raceId);
+            console.log(`Broadcasting race update to ${participants.length} participants`);
             broadcastToRace(raceId, {
               type: 'race_update',
               data: { race, participants }
