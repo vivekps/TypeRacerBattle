@@ -89,9 +89,9 @@ export function RaceInterface({ race, participants, currentPlayerId, onLeaveRace
     return () => clearInterval(interval);
   }, [raceStarted, race.status, race.startedAt, race.timeLimit]);
 
-  // Send typing updates
+  // Send typing updates only when there's actual typing
   useEffect(() => {
-    if (!raceStarted || !startTime || race.status !== 'active') return;
+    if (!raceStarted || !startTime || race.status !== 'active' || typedText.length === 0) return;
 
     const timeElapsed = (Date.now() - startTime) / 1000;
     const wpm = calculateWPM(analysis.stats.progress, timeElapsed);
@@ -178,14 +178,19 @@ export function RaceInterface({ race, participants, currentPlayerId, onLeaveRace
           {/* Players Progress */}
           <div className="space-y-3" key={renderKey}>
             {sortedParticipants.map((participant, index) => {
-              const progressPercentage = Math.min(100, Math.max(0, (participant.progress / race.textPassage.length) * 100));
+              // Use local progress for current player, server progress for others
               const isCurrentPlayer = participant.playerId === currentPlayerId;
+              const displayProgress = isCurrentPlayer ? analysis.stats.progress : participant.progress;
+              const displayWpm = isCurrentPlayer ? (startTime ? calculateWPM(analysis.stats.progress, (Date.now() - startTime) / 1000) : 0) : participant.wpm;
+              const displayAccuracy = isCurrentPlayer ? analysis.stats.accuracy : participant.accuracy;
+              
+              const progressPercentage = Math.min(100, Math.max(0, (displayProgress / race.textPassage.length) * 100));
               const colorClass = getPlayerColor(index);
               
-              console.log(`RENDERING Player ${participant.playerName}: progress=${participant.progress}/${race.textPassage.length} = ${progressPercentage}% (timestamp: ${Date.now()})`);
+              console.log(`RENDERING Player ${participant.playerName}: progress=${displayProgress}/${race.textPassage.length} = ${progressPercentage}% (local: ${isCurrentPlayer})`);
               
               return (
-                <div key={`${participant.playerId}-${participant.progress}-${lastUpdateTime}`} className="flex items-center space-x-4">
+                <div key={`${participant.playerId}-${displayProgress}-${lastUpdateTime}`} className="flex items-center space-x-4">
                   <div className={`w-24 text-sm font-medium truncate ${isCurrentPlayer ? 'text-blue-600' : ''}`}>
                     {isCurrentPlayer ? 'You' : participant.playerName}
                   </div>
@@ -200,10 +205,10 @@ export function RaceInterface({ race, participants, currentPlayerId, onLeaveRace
                     />
                   </div>
                   <div className="w-16 text-right text-sm font-medium">
-                    {participant.wpm} WPM
+                    {displayWpm} WPM
                   </div>
                   <div className="w-12 text-right text-sm text-gray-600">
-                    {participant.accuracy}%
+                    {displayAccuracy}%
                   </div>
                 </div>
               );

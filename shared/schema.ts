@@ -14,7 +14,7 @@ export const races = pgTable("races", {
   textPassage: text("text_passage").notNull(),
   maxPlayers: integer("max_players").notNull().default(4),
   difficulty: text("difficulty").notNull().default("medium"),
-  timeLimit: integer("time_limit").notNull().default(180), // seconds
+  timeLimit: integer("time_limit").notNull().default(300), // seconds (5 minutes)
   status: text("status").notNull().default("waiting"), // waiting, active, finished
   createdAt: timestamp("created_at").defaultNow(),
   startedAt: timestamp("started_at"),
@@ -55,7 +55,7 @@ export const insertRaceSchema = createInsertSchema(races).pick({
 }).extend({
   maxPlayers: z.number().default(4),
   difficulty: z.string().default('medium'),
-  timeLimit: z.number().default(180),
+  timeLimit: z.number().default(300),
 });
 
 export const insertRaceParticipantSchema = createInsertSchema(raceParticipants).pick({
