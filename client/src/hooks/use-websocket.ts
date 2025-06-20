@@ -4,6 +4,10 @@ import { type WebSocketMessage } from '@shared/schema';
 
 export type ConnectionStatus = 'connecting' | 'connected' | 'disconnected' | 'reconnecting';
 
+// Global player ID management
+let globalPlayerId: string | null = null;
+let isPlayerIdAssigned = false;
+
 export function useWebSocket() {
   const [connectionStatus, setConnectionStatus] = useState<ConnectionStatus>('disconnected');
   const socket = useRef<Socket | null>(null);
@@ -97,12 +101,31 @@ export function useWebSocket() {
     };
   }, [connect, disconnect]);
 
+  const getPlayerId = useCallback(() => {
+    return globalPlayerId;
+  }, []);
+
+  const setPlayerId = useCallback((playerId: string) => {
+    globalPlayerId = playerId;
+    isPlayerIdAssigned = true;
+    console.log('Global player ID set to:', playerId);
+  }, []);
+
+  const clearPlayerId = useCallback(() => {
+    globalPlayerId = null;
+    isPlayerIdAssigned = false;
+    console.log('Global player ID cleared');
+  }, []);
+
   return {
     connectionStatus,
     sendMessage,
     addMessageHandler,
     removeMessageHandler,
     connect,
-    disconnect
+    disconnect,
+    getPlayerId,
+    setPlayerId,
+    clearPlayerId,
   };
 }

@@ -36,7 +36,7 @@ export function RaceInterface({ race, participants, currentPlayerId, onLeaveRace
     }
   }, [race.status, startTime]);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
-  const { sendMessage, addMessageHandler, removeMessageHandler } = useWebSocket();
+  const { sendMessage, addMessageHandler, removeMessageHandler, getPlayerId } = useWebSocket();
 
   const currentParticipant = participants.find(p => p.playerId === currentPlayerId);
   const analysis = analyzeText(race.textPassage, typedText);
@@ -97,8 +97,9 @@ export function RaceInterface({ race, participants, currentPlayerId, onLeaveRace
     const wpm = timeElapsed > 0 ? calculateWPM(analysis.stats.progress, timeElapsed) : 0;
 
     // Only send updates if there's actual progress or this is the first update
-    if (analysis.stats.progress > 0 || typedText.length > 0) {
-      console.log('Sending typing update:', {
+    const globalPlayerId = getPlayerId();
+    if ((analysis.stats.progress > 0 || typedText.length > 0) && globalPlayerId) {
+      console.log('Sending typing update with player ID:', globalPlayerId, {
         progress: analysis.stats.progress,
         wpm,
         accuracy: analysis.stats.accuracy,
@@ -117,6 +118,8 @@ export function RaceInterface({ race, participants, currentPlayerId, onLeaveRace
           errors: analysis.stats.errors,
         },
       });
+    } else if (!globalPlayerId) {
+      console.warn('Cannot send typing update: no global player ID set');
     }
   }, [typedText, raceStarted, startTime, race.id, race.status, sendMessage, analysis.stats]);
 

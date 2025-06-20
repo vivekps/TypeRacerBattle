@@ -18,7 +18,7 @@ export default function Home() {
   const [currentPlayerId, setCurrentPlayerId] = useState<string>('');
   const [onlineUsers] = useState(1247); // This would come from the server in a real app
   
-  const { sendMessage, addMessageHandler, removeMessageHandler } = useWebSocket();
+  const { sendMessage, addMessageHandler, removeMessageHandler, setPlayerId, clearPlayerId, getPlayerId } = useWebSocket();
   const { toast } = useToast();
 
   useEffect(() => {
@@ -32,6 +32,7 @@ export default function Home() {
         // Find the participant that was just added (should be the last one)
         const myParticipant = data.participants[data.participants.length - 1];
         setCurrentPlayerId(myParticipant.playerId);
+        setPlayerId(myParticipant.playerId); // Sync with global player ID
         console.log('Set current player ID:', myParticipant.playerId);
       }
     };
@@ -53,6 +54,15 @@ export default function Home() {
     };
 
     const handlePlayerJoined = (data: { raceId: number; participant: RaceParticipant }) => {
+      setParticipants(prev => [...prev.filter(p => p.playerId !== data.participant.playerId), data.participant]);
+      
+      // If this is our participant (last one joined and we don't have an ID yet), set it
+      if (!currentPlayerId || !getPlayerId()) {
+        setCurrentPlayerId(data.participant.playerId);
+        setPlayerId(data.participant.playerId);
+        console.log('Setting player ID from player_joined event:', data.participant.playerId);
+      }
+      
       toast({
         title: 'Player Joined',
         description: `${data.participant.playerName} joined the race`,

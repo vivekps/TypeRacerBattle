@@ -15,9 +15,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
   
-  // Track connections
+  // Track connections and player data
   const playerRaces = new Map<string, number>(); // socketId -> raceId
   const playerIds = new Map<string, string>(); // socketId -> playerId
+  const playerNames = new Map<string, string>(); // socketId -> playerName
+  const socketsByRace = new Map<number, Set<string>>(); // raceId -> Set of socketIds
   
   // Generate unique player ID
   function generatePlayerId(): string {
@@ -27,15 +29,25 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Broadcast to all players in a race
   function broadcastToRace(raceId: number, message: any, excludeSocketId?: string) {
     let sentCount = 0;
-    Array.from(io.sockets.sockets.entries()).forEach(([socketId, socket]) => {
-      if (playerRaces.get(socketId) === raceId && socketId !== excludeSocketId) {
-        console.log(`Sending ${message.type} to socket ${socketId} for race ${raceId}`);
-        // Emit both as 'message' and as the specific event type
-        socket.emit('message', message);
-        socket.emit(message.type, message.data);
-        sentCount++;
+    const socketsInRace = socketsByRace.get(raceId) || new Set();
+    
+    socketsInRace.forEach(socketId => {
+      if (socketId !== excludeSocketId) {
+        const socket = io.sockets.sockets.get(socketId);
+        if (socket) {
+          console.log(`Sending ${message.type} to socket ${socketId} for race ${raceId}`);
+          socket.emit('message', message);
+          sentCount++;
+        } else {
+          // Clean up stale socket references
+          socketsInRace.delete(socketId);
+          playerRaces.delete(socketId);
+          playerIds.delete(socketId);
+          playerNames.delete(socketId);
+        }
       }
     });
+    
     console.log(`Broadcast complete: sent ${message.type} to ${sentCount} clients`);
   }
   
@@ -144,8 +156,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
               playerName
             });
             
+            // Track all player data
             playerRaces.set(socket.id, raceId);
-            console.log(`Player ${playerId} added to race ${raceId}`);
+            playerNames.set(socket.id, playerName);
+            
+            // Add socket to race tracking
+            if (!socketsByRace.has(raceId)) {
+              socketsByRace.set(raceId, new Set());
+            }
+            socketsByRace.get(raceId)!.add(socket.id);
+            
+            console.log(`Player ${currentPlayerId} (${playerName}) added to race ${raceId}`);
             
             // Send race update to new player first
             const updatedParticipants = await storage.getRaceParticipants(raceId);
@@ -177,7 +198,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
             const { raceId } = message.data;
             
             await storage.removeParticipant(raceId, currentPlayerId);
+            
+            // Clean up all tracking data
             playerRaces.delete(socket.id);
+            playerNames.delete(socket.id);
+            const socketsInRace = socketsByRace.get(raceId);
+            if (socketsInRace) {
+              socketsInRace.delete(socket.id);
+              if (socketsInRace.size === 0) {
+                socketsByRace.delete(raceId);
+              }
+            }
             
             broadcastToRace(raceId, {
               type: 'player_left',
@@ -237,16 +268,33 @@ export async function registerRoutes(app: Express): Promise<Server> {
     
     socket.on('disconnect', async () => {
       const raceId = playerRaces.get(socket.id);
-      if (raceId) {
-        await storage.removeParticipant(raceId, playerId);
+      const currentPlayerId = playerIds.get(socket.id);
+      
+      if (raceId && currentPlayerId) {
+        await storage.removeParticipant(raceId, currentPlayerId);
         broadcastToRace(raceId, {
           type: 'player_left',
-          data: { raceId, playerId }
+          data: { raceId, playerId: currentPlayerId }
         });
       }
       
+      // Clean up all tracking data
       playerRaces.delete(socket.id);
-      console.log(`Socket disconnected: ${playerId} (${socket.id})`);
+      playerIds.delete(socket.id);
+      playerNames.delete(socket.id);
+      
+      // Remove from race socket tracking
+      if (raceId) {
+        const socketsInRace = socketsByRace.get(raceId);
+        if (socketsInRace) {
+          socketsInRace.delete(socket.id);
+          if (socketsInRace.size === 0) {
+            socketsByRace.delete(raceId);
+          }
+        }
+      }
+      
+      console.log(`Socket disconnected: ${currentPlayerId || playerId} (${socket.id})`);
     });
   });
 
