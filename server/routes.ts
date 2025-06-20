@@ -25,11 +25,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
   
   // Broadcast to all players in a race
   function broadcastToRace(raceId: number, message: any, excludeSocketId?: string) {
+    let sentCount = 0;
     Array.from(io.sockets.sockets.entries()).forEach(([socketId, socket]) => {
       if (playerRaces.get(socketId) === raceId && socketId !== excludeSocketId) {
+        console.log(`Sending ${message.type} to socket ${socketId}`);
         socket.emit('message', message);
+        sentCount++;
       }
     });
+    console.log(`Broadcast complete: sent ${message.type} to ${sentCount} clients`);
   }
   
   // Check if race should start
