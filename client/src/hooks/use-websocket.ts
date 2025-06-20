@@ -37,9 +37,10 @@ export function useWebSocket() {
       setConnectionStatus('disconnected');
     });
 
+    // Listen for all possible message types directly
     socket.current.on('message', (message: WebSocketMessage) => {
       try {
-        console.log('Socket.IO message received:', message.type, JSON.stringify(message.data, null, 2));
+        console.log('Socket.IO RAW message received:', message);
         const handler = messageHandlers.current.get(message.type);
         if (handler) {
           console.log('Calling handler for:', message.type);
@@ -50,6 +51,19 @@ export function useWebSocket() {
       } catch (error) {
         console.error('Failed to handle Socket.IO message:', error);
       }
+    });
+
+    // Also listen for specific event types in case the server is using different emission
+    socket.current.on('race_update', (data: any) => {
+      console.log('Direct race_update received:', data);
+      const handler = messageHandlers.current.get('race_update');
+      if (handler) handler(data);
+    });
+
+    socket.current.on('race_started', (data: any) => {
+      console.log('Direct race_started received:', data);
+      const handler = messageHandlers.current.get('race_started');
+      if (handler) handler(data);
     });
   }, []);
 

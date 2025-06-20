@@ -29,7 +29,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
     Array.from(io.sockets.sockets.entries()).forEach(([socketId, socket]) => {
       if (playerRaces.get(socketId) === raceId && socketId !== excludeSocketId) {
         console.log(`Sending ${message.type} to socket ${socketId}`);
+        // Emit both as 'message' and as the specific event type
         socket.emit('message', message);
+        socket.emit(message.type, message.data);
         sentCount++;
       }
     });
