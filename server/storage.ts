@@ -129,7 +129,24 @@ export class DatabaseStorage implements IStorage {
   }
 
   async updateParticipantProgress(raceId: number, playerId: string, progress: number, wpm: number, accuracy: number, errors: number): Promise<void> {
-    await db.update(raceParticipants).set({
+    console.log(`Attempting to update participant: raceId=${raceId}, playerId=${playerId}, progress=${progress}, wpm=${wpm}`);
+    
+    // First check if participant exists
+    const existingParticipant = await db.select().from(raceParticipants).where(
+      and(
+        eq(raceParticipants.raceId, raceId),
+        eq(raceParticipants.playerId, playerId)
+      )
+    );
+    
+    console.log(`Found ${existingParticipant.length} participants for raceId=${raceId}, playerId=${playerId}`);
+    
+    if (existingParticipant.length === 0) {
+      console.error(`No participant found to update: raceId=${raceId}, playerId=${playerId}`);
+      return;
+    }
+    
+    const result = await db.update(raceParticipants).set({
       progress,
       wpm,
       accuracy,
@@ -139,7 +156,9 @@ export class DatabaseStorage implements IStorage {
         eq(raceParticipants.raceId, raceId),
         eq(raceParticipants.playerId, playerId)
       )
-    );
+    ).returning();
+    
+    console.log(`Database update successful for ${playerId}:`, result[0]);
   }
 
   async finishParticipant(raceId: number, playerId: string): Promise<void> {

@@ -89,32 +89,35 @@ export function RaceInterface({ race, participants, currentPlayerId, onLeaveRace
     return () => clearInterval(interval);
   }, [raceStarted, race.status, race.startedAt, race.timeLimit]);
 
-  // Send typing updates only when there's actual typing
+  // Send typing updates when there's actual typing
   useEffect(() => {
-    if (!raceStarted || !startTime || race.status !== 'active' || typedText.length === 0) return;
+    if (!raceStarted || !startTime || race.status !== 'active') return;
 
     const timeElapsed = (Date.now() - startTime) / 1000;
-    const wpm = calculateWPM(analysis.stats.progress, timeElapsed);
+    const wpm = timeElapsed > 0 ? calculateWPM(analysis.stats.progress, timeElapsed) : 0;
 
-    console.log('Sending typing update:', {
-      progress: analysis.stats.progress,
-      wpm,
-      accuracy: analysis.stats.accuracy,
-      errors: analysis.stats.errors,
-      typedLength: typedText.length,
-      timeElapsed
-    });
-
-    sendMessage({
-      type: 'typing_update',
-      data: {
-        raceId: race.id,
+    // Only send updates if there's actual progress or this is the first update
+    if (analysis.stats.progress > 0 || typedText.length > 0) {
+      console.log('Sending typing update:', {
         progress: analysis.stats.progress,
         wpm,
         accuracy: analysis.stats.accuracy,
         errors: analysis.stats.errors,
-      },
-    });
+        typedLength: typedText.length,
+        timeElapsed
+      });
+
+      sendMessage({
+        type: 'typing_update',
+        data: {
+          raceId: race.id,
+          progress: analysis.stats.progress,
+          wpm,
+          accuracy: analysis.stats.accuracy,
+          errors: analysis.stats.errors,
+        },
+      });
+    }
   }, [typedText, raceStarted, startTime, race.id, race.status, sendMessage, analysis.stats]);
 
   const handleTextChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {

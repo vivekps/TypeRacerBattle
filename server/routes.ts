@@ -193,27 +193,33 @@ export async function registerRoutes(app: Express): Promise<Server> {
               return;
             }
             
-            // Update participant progress in storage
-            await storage.updateParticipantProgress(raceId, playerId, progress, wpm, accuracy, errors);
-            
-            // Check if player finished
-            if (progress >= race.textPassage.length) {
-              await storage.finishParticipant(raceId, playerId);
+            try {
+              // Update participant progress in storage
+              await storage.updateParticipantProgress(raceId, playerId, progress, wpm, accuracy, errors);
+              console.log(`Successfully updated progress for ${playerId}: ${progress} chars, ${wpm} WPM`);
+              
+              // Check if player finished
+              if (progress >= race.textPassage.length) {
+                await storage.finishParticipant(raceId, playerId);
+                console.log(`Player ${playerId} finished the race`);
+              }
+              
+              // Get updated participants and broadcast to all players
+              const participants = await storage.getRaceParticipants(raceId);
+              const updatedRace = await storage.getRace(raceId);
+              
+              console.log(`Broadcasting race update to ${participants.length} participants. Updated progress: ${participants.map(p => `${p.playerName}:${p.progress} chars, ${p.wpm} WPM`).join(', ')}`);
+              
+              broadcastToRace(raceId, {
+                type: 'race_update',
+                data: { race: updatedRace, participants }
+              });
+              
+              // Check if race is finished
+              await checkRaceFinish(raceId);
+            } catch (error) {
+              console.error('Error updating participant progress:', error);
             }
-            
-            // Get updated participants and broadcast to all players
-            const participants = await storage.getRaceParticipants(raceId);
-            const updatedRace = await storage.getRace(raceId);
-            
-            console.log(`Broadcasting race update to ${participants.length} participants. Updated progress: ${participants.map(p => `${p.playerName}:${p.progress}`).join(', ')}`);
-            
-            broadcastToRace(raceId, {
-              type: 'race_update',
-              data: { race: updatedRace, participants }
-            });
-            
-            // Check if race is finished
-            await checkRaceFinish(raceId);
             break;
           }
         }
