@@ -128,6 +128,9 @@ export function RaceInterface({ race, participants, currentPlayerId, onLeaveRace
 
   const wordGroups = groupSegmentsByWord(analysis.segments);
   const sortedParticipants = [...participants].sort((a, b) => b.progress - a.progress);
+  
+  // Add dependency to force re-render when participants change
+  const participantsHash = participants.map(p => `${p.playerId}:${p.progress}:${p.wpm}`).join('|');
 
   return (
     <div className="space-y-6">
@@ -164,16 +167,16 @@ export function RaceInterface({ race, participants, currentPlayerId, onLeaveRace
           </div>
 
           {/* Players Progress */}
-          <div className="space-y-3">
+          <div className="space-y-3" key={`progress-${Date.now()}`}>
             {sortedParticipants.map((participant, index) => {
               const progressPercentage = Math.min(100, Math.max(0, (participant.progress / race.textPassage.length) * 100));
               const isCurrentPlayer = participant.playerId === currentPlayerId;
               const colorClass = getPlayerColor(index);
               
-              console.log(`Player ${participant.playerName}: progress=${participant.progress}/${race.textPassage.length} = ${progressPercentage}%`);
+              console.log(`RENDERING Player ${participant.playerName}: progress=${participant.progress}/${race.textPassage.length} = ${progressPercentage}% (timestamp: ${Date.now()})`);
               
               return (
-                <div key={participant.playerId} className="flex items-center space-x-4">
+                <div key={`${participant.playerId}-${participant.progress}`} className="flex items-center space-x-4">
                   <div className={`w-24 text-sm font-medium truncate ${isCurrentPlayer ? 'text-blue-600' : ''}`}>
                     {isCurrentPlayer ? 'You' : participant.playerName}
                   </div>

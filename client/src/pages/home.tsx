@@ -24,8 +24,8 @@ export default function Home() {
   useEffect(() => {
     const handleRaceUpdate = (data: { race: Race; participants: RaceParticipant[] }) => {
       console.log('*** CLIENT RACE UPDATE RECEIVED ***', data.race.status, 'participants:', data.participants.map(p => `${p.playerName}: ${p.progress}/${data.race.textPassage.length} (${p.wpm} WPM)`));
-      setCurrentRace(data.race);
-      setParticipants(data.participants);
+      setCurrentRace(prev => ({ ...data.race }));
+      setParticipants(prev => data.participants.map(p => ({ ...p, lastUpdate: Date.now() })));
       
       // Set current player ID from participants if not already set
       if (!currentPlayerId && data.participants.length > 0) {

@@ -86,7 +86,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const currentTime = Date.now();
       const timeElapsed = (currentTime - raceStartTime) / 1000;
       
-      if (finishedParticipants.length === participants.length || timeElapsed >= race.timeLimit) {
+      // Only end race if we have participants and they're all finished, or time limit exceeded
+      if ((participants.length > 0 && finishedParticipants.length === participants.length) || timeElapsed >= race.timeLimit) {
         await storage.setRaceFinishTime(raceId);
         await storage.updateParticipantRanks(raceId);
         
