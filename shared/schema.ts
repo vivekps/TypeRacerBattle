@@ -52,6 +52,10 @@ export const insertRaceSchema = createInsertSchema(races).pick({
   maxPlayers: true,
   difficulty: true,
   timeLimit: true,
+}).extend({
+  maxPlayers: z.number().default(4),
+  difficulty: z.string().default('medium'),
+  timeLimit: z.number().default(180),
 });
 
 export const insertRaceParticipantSchema = createInsertSchema(raceParticipants).pick({

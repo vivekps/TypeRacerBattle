@@ -138,8 +138,7 @@ export function RaceSelector({ onJoinRace }: RaceSelectorProps) {
                       <div className="flex items-center space-x-2">
                         <Users className="w-4 h-4 text-gray-400" />
                         <span className="text-sm text-gray-600">
-                          {/* TODO: Get actual participant count */}
-                          0/{race.maxPlayers} players
+                          Waiting/{race.maxPlayers} players
                         </span>
                       </div>
                       <div className="flex items-center space-x-2">

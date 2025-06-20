@@ -21,7 +21,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   
   // Broadcast to all players in a race
   function broadcastToRace(raceId: number, message: WebSocketMessage, excludePlayerId?: string) {
-    for (const [playerId, connection] of connections) {
+    for (const [playerId, connection] of Array.from(connections.entries())) {
       if (playerRaces.get(playerId) === raceId && playerId !== excludePlayerId) {
         if (connection.readyState === WebSocket.OPEN) {
           connection.send(JSON.stringify(message));
@@ -35,18 +35,30 @@ export async function registerRoutes(app: Express): Promise<Server> {
     const race = await storage.getRace(raceId);
     const participants = await storage.getRaceParticipants(raceId);
     
+    console.log(`Checking race start: Race ${raceId}, status: ${race?.status}, participants: ${participants.length}`);
+    
     if (race && race.status === "waiting" && participants.length >= 2) {
+      console.log(`Starting race ${raceId} in 5 seconds with ${participants.length} players`);
       // Start race after 5 seconds if we have at least 2 players
       setTimeout(async () => {
         const currentRace = await storage.getRace(raceId);
         const currentParticipants = await storage.getRaceParticipants(raceId);
         
         if (currentRace && currentRace.status === "waiting" && currentParticipants.length >= 2) {
+          console.log(`Actually starting race ${raceId}`);
           await storage.setRaceStartTime(raceId);
+          
+          const updatedRace = await storage.getRace(raceId);
           
           broadcastToRace(raceId, {
             type: 'race_started',
             data: { raceId }
+          });
+          
+          // Send updated race data
+          broadcastToRace(raceId, {
+            type: 'race_update',
+            data: { race: updatedRace!, participants: currentParticipants }
           });
         }
       }, 5000);
@@ -83,6 +95,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   wss.on('connection', (ws) => {
     const playerId = generatePlayerId();
     connections.set(playerId, ws);
+    console.log(`WebSocket connected: ${playerId}, total connections: ${connections.size}`);
     
     ws.on('message', async (data) => {
       try {
@@ -91,10 +104,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
         switch (message.type) {
           case 'join_race': {
             const { raceId, playerName } = message.data;
+            console.log(`Player ${playerId} (${playerName}) attempting to join race ${raceId}`);
             
             // Check if race exists and is joinable
             const race = await storage.getRace(raceId);
             if (!race || race.status !== "waiting") {
+              console.log(`Race ${raceId} not available: ${race ? race.status : 'not found'}`);
               ws.send(JSON.stringify({
                 type: 'error',
                 data: { message: 'Race not available for joining' }
@@ -120,19 +135,28 @@ export async function registerRoutes(app: Express): Promise<Server> {
             });
             
             playerRaces.set(playerId, raceId);
+            console.log(`Player ${playerId} added to race ${raceId}`);
             
-            // Broadcast to all players in race
-            broadcastToRace(raceId, {
-              type: 'player_joined',
-              data: { raceId, participant }
-            });
-            
-            // Send race update to new player
+            // Send race update to new player first
             const updatedParticipants = await storage.getRaceParticipants(raceId);
             ws.send(JSON.stringify({
               type: 'race_update',
               data: { race, participants: updatedParticipants }
             }));
+            
+            // Broadcast to all other players in race
+            broadcastToRace(raceId, {
+              type: 'player_joined',
+              data: { raceId, participant }
+            }, playerId);
+            
+            // Broadcast updated race state to all players
+            broadcastToRace(raceId, {
+              type: 'race_update',
+              data: { race, participants: updatedParticipants }
+            });
+            
+            console.log(`Race ${raceId} now has ${updatedParticipants.length} participants`);
             
             // Check if race should start
             await checkRaceStart(raceId);

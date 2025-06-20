@@ -25,6 +25,12 @@ export default function Home() {
     const handleRaceUpdate = (data: { race: Race; participants: RaceParticipant[] }) => {
       setCurrentRace(data.race);
       setParticipants(data.participants);
+      
+      // Set current player ID from participants
+      if (!currentPlayerId && data.participants.length > 0) {
+        const lastParticipant = data.participants[data.participants.length - 1];
+        setCurrentPlayerId(lastParticipant.playerId);
+      }
     };
 
     const handleRaceStarted = (data: { raceId: number }) => {
@@ -83,10 +89,6 @@ export default function Home() {
   }, [addMessageHandler, removeMessageHandler, toast]);
 
   const handleJoinRace = (raceId: number, playerName: string) => {
-    // Generate a session ID for this player
-    const playerId = Math.random().toString(36).substring(2, 15);
-    setCurrentPlayerId(playerId);
-    
     sendMessage({
       type: 'join_race',
       data: { raceId, playerName }

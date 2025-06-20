@@ -65,15 +65,18 @@ export class MemStorage implements IStorage {
   }
 
   async createRace(insertRace: InsertRace): Promise<Race> {
-    const textPassage = await this.getTextPassage(insertRace.difficulty);
+    const textPassage = await this.getTextPassage(insertRace.difficulty || 'medium');
     if (!textPassage) {
-      throw new Error(`No text passage found for difficulty: ${insertRace.difficulty}`);
+      throw new Error(`No text passage found for difficulty: ${insertRace.difficulty || 'medium'}`);
     }
 
     const race: Race = {
       id: this.currentRaceId++,
-      ...insertRace,
+      name: insertRace.name,
       textPassage: textPassage.content,
+      maxPlayers: insertRace.maxPlayers || 4,
+      difficulty: insertRace.difficulty || 'medium',
+      timeLimit: insertRace.timeLimit || 180,
       status: "waiting",
       createdAt: new Date(),
       startedAt: null,

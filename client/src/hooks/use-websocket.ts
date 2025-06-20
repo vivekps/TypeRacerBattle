@@ -20,7 +20,13 @@ export function useWebSocket() {
     const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
     const wsUrl = `${protocol}//${window.location.host}/ws`;
     
-    ws.current = new WebSocket(wsUrl);
+    try {
+      ws.current = new WebSocket(wsUrl);
+    } catch (error) {
+      console.error('WebSocket connection error:', error);
+      setConnectionStatus('disconnected');
+      return;
+    }
 
     ws.current.onopen = () => {
       setConnectionStatus('connected');
