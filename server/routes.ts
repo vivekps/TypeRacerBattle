@@ -1,18 +1,22 @@
 import type { Express } from "express";
 import { createServer, type Server } from "http";
-import { WebSocketServer, WebSocket } from "ws";
+import { Server as SocketIOServer } from "socket.io";
 import { storage } from "./storage";
 import { insertRaceSchema, insertRaceParticipantSchema, type WebSocketMessage, type Race, type RaceParticipant } from "@shared/schema";
 
 export async function registerRoutes(app: Express): Promise<Server> {
   const httpServer = createServer(app);
   
-  // WebSocket server setup
-  const wss = new WebSocketServer({ server: httpServer, path: '/ws' });
+  // Socket.IO server setup
+  const io = new SocketIOServer(httpServer, {
+    cors: {
+      origin: "*",
+      methods: ["GET", "POST"]
+    }
+  });
   
-  // Track WebSocket connections
-  const connections = new Map<string, WebSocket>();
-  const playerRaces = new Map<string, number>(); // playerId -> raceId
+  // Track connections
+  const playerRaces = new Map<string, number>(); // socketId -> raceId
   
   // Generate unique player ID
   function generatePlayerId(): string {
@@ -20,14 +24,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
   }
   
   // Broadcast to all players in a race
-  function broadcastToRace(raceId: number, message: WebSocketMessage, excludePlayerId?: string) {
-    for (const [playerId, connection] of Array.from(connections.entries())) {
-      if (playerRaces.get(playerId) === raceId && playerId !== excludePlayerId) {
-        if (connection.readyState === WebSocket.OPEN) {
-          connection.send(JSON.stringify(message));
-        }
+  function broadcastToRace(raceId: number, message: any, excludeSocketId?: string) {
+    Array.from(io.sockets.sockets.entries()).forEach(([socketId, socket]) => {
+      if (playerRaces.get(socketId) === raceId && socketId !== excludeSocketId) {
+        socket.emit('message', message);
       }
-    }
+    });
   }
   
   // Check if race should start
@@ -92,14 +94,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   }
   
-  wss.on('connection', (ws) => {
+  io.on('connection', (socket) => {
     const playerId = generatePlayerId();
-    connections.set(playerId, ws);
-    console.log(`WebSocket connected: ${playerId}, total connections: ${connections.size}`);
+    console.log(`Socket connected: ${playerId} (${socket.id})`);
     
-    ws.on('message', async (data) => {
+    socket.on('message', async (message: WebSocketMessage) => {
       try {
-        const message: WebSocketMessage = JSON.parse(data.toString());
         
         switch (message.type) {
           case 'join_race': {
@@ -110,20 +110,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
             const race = await storage.getRace(raceId);
             if (!race || race.status !== "waiting") {
               console.log(`Race ${raceId} not available: ${race ? race.status : 'not found'}`);
-              ws.send(JSON.stringify({
+              socket.emit('message', {
                 type: 'error',
                 data: { message: 'Race not available for joining' }
-              }));
+              });
               return;
             }
             
             // Check if race is full
             const participants = await storage.getRaceParticipants(raceId);
             if (participants.length >= race.maxPlayers) {
-              ws.send(JSON.stringify({
+              socket.emit('message', {
                 type: 'error',
                 data: { message: 'Race is full' }
-              }));
+              });
               return;
             }
             
@@ -134,21 +134,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
               playerName
             });
             
-            playerRaces.set(playerId, raceId);
+            playerRaces.set(socket.id, raceId);
             console.log(`Player ${playerId} added to race ${raceId}`);
             
             // Send race update to new player first
             const updatedParticipants = await storage.getRaceParticipants(raceId);
-            ws.send(JSON.stringify({
+            socket.emit('message', {
               type: 'race_update',
               data: { race, participants: updatedParticipants }
-            }));
+            });
             
             // Broadcast to all other players in race
             broadcastToRace(raceId, {
               type: 'player_joined',
               data: { raceId, participant }
-            }, playerId);
+            }, socket.id);
             
             // Broadcast updated race state to all players
             broadcastToRace(raceId, {
@@ -167,7 +167,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
             const { raceId } = message.data;
             
             await storage.removeParticipant(raceId, playerId);
-            playerRaces.delete(playerId);
+            playerRaces.delete(socket.id);
             
             broadcastToRace(raceId, {
               type: 'player_left',
@@ -204,16 +204,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
           }
         }
       } catch (error) {
-        console.error('WebSocket message error:', error);
-        ws.send(JSON.stringify({
+        console.error('Socket message error:', error);
+        socket.emit('message', {
           type: 'error',
           data: { message: 'Invalid message format' }
-        }));
+        });
       }
     });
     
-    ws.on('close', async () => {
-      const raceId = playerRaces.get(playerId);
+    socket.on('disconnect', async () => {
+      const raceId = playerRaces.get(socket.id);
       if (raceId) {
         await storage.removeParticipant(raceId, playerId);
         broadcastToRace(raceId, {
@@ -222,8 +222,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         });
       }
       
-      connections.delete(playerId);
-      playerRaces.delete(playerId);
+      playerRaces.delete(socket.id);
+      console.log(`Socket disconnected: ${playerId} (${socket.id})`);
     });
   });
 

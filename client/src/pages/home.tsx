@@ -26,10 +26,12 @@ export default function Home() {
       setCurrentRace(data.race);
       setParticipants(data.participants);
       
-      // Set current player ID from participants
+      // Set current player ID from participants if not already set
       if (!currentPlayerId && data.participants.length > 0) {
-        const lastParticipant = data.participants[data.participants.length - 1];
-        setCurrentPlayerId(lastParticipant.playerId);
+        // Find the participant that was just added (should be the last one)
+        const myParticipant = data.participants[data.participants.length - 1];
+        setCurrentPlayerId(myParticipant.playerId);
+        console.log('Set current player ID:', myParticipant.playerId);
       }
     };
 

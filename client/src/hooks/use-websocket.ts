@@ -1,69 +1,57 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
+import { io, type Socket } from 'socket.io-client';
 import { type WebSocketMessage } from '@shared/schema';
 
 export type ConnectionStatus = 'connecting' | 'connected' | 'disconnected' | 'reconnecting';
 
 export function useWebSocket() {
   const [connectionStatus, setConnectionStatus] = useState<ConnectionStatus>('disconnected');
-  const ws = useRef<WebSocket | null>(null);
-  const reconnectAttempts = useRef(0);
-  const maxReconnectAttempts = 5;
+  const socket = useRef<Socket | null>(null);
   const messageHandlers = useRef<Map<string, (data: any) => void>>(new Map());
 
   const connect = useCallback(() => {
-    if (ws.current?.readyState === WebSocket.OPEN) {
+    if (socket.current?.connected) {
       return;
     }
 
     setConnectionStatus('connecting');
     
-    const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
-    const wsUrl = `${protocol}//${window.location.host}/ws`;
+    console.log('Attempting Socket.IO connection...');
     
-    try {
-      ws.current = new WebSocket(wsUrl);
-    } catch (error) {
-      console.error('WebSocket connection error:', error);
-      setConnectionStatus('disconnected');
-      return;
-    }
+    socket.current = io({
+      transports: ['websocket', 'polling']
+    });
 
-    ws.current.onopen = () => {
+    socket.current.on('connect', () => {
+      console.log('Socket.IO connected successfully');
       setConnectionStatus('connected');
-      reconnectAttempts.current = 0;
-    };
+    });
 
-    ws.current.onclose = (event) => {
+    socket.current.on('disconnect', () => {
+      console.log('Socket.IO disconnected');
       setConnectionStatus('disconnected');
-      
-      // Attempt to reconnect if it wasn't a manual close
-      if (!event.wasClean && reconnectAttempts.current < maxReconnectAttempts) {
-        setConnectionStatus('reconnecting');
-        reconnectAttempts.current++;
-        setTimeout(connect, 2000 * reconnectAttempts.current);
-      }
-    };
+    });
 
-    ws.current.onerror = () => {
+    socket.current.on('connect_error', (error) => {
+      console.error('Socket.IO connection error:', error);
       setConnectionStatus('disconnected');
-    };
+    });
 
-    ws.current.onmessage = (event) => {
+    socket.current.on('message', (message: WebSocketMessage) => {
       try {
-        const message: WebSocketMessage = JSON.parse(event.data);
         const handler = messageHandlers.current.get(message.type);
         if (handler) {
           handler(message.data);
         }
       } catch (error) {
-        console.error('Failed to parse WebSocket message:', error);
+        console.error('Failed to handle Socket.IO message:', error);
       }
-    };
+    });
   }, []);
 
   const sendMessage = useCallback((message: WebSocketMessage) => {
-    if (ws.current?.readyState === WebSocket.OPEN) {
-      ws.current.send(JSON.stringify(message));
+    if (socket.current?.connected) {
+      socket.current.emit('message', message);
     }
   }, []);
 
@@ -76,9 +64,9 @@ export function useWebSocket() {
   }, []);
 
   const disconnect = useCallback(() => {
-    if (ws.current) {
-      ws.current.close();
-      ws.current = null;
+    if (socket.current) {
+      socket.current.disconnect();
+      socket.current = null;
     }
     setConnectionStatus('disconnected');
   }, []);

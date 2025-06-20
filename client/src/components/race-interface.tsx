@@ -19,6 +19,20 @@ export function RaceInterface({ race, participants, currentPlayerId, onLeaveRace
   const [startTime, setStartTime] = useState<number | null>(null);
   const [timeRemaining, setTimeRemaining] = useState(race.timeLimit);
   const [raceStarted, setRaceStarted] = useState(race.status === 'active');
+
+  // Update race status when race prop changes
+  useEffect(() => {
+    console.log('Race status changed to:', race.status);
+    if (race.status === 'active') {
+      setRaceStarted(true);
+      if (!startTime) {
+        setStartTime(Date.now());
+      }
+      if (textareaRef.current) {
+        textareaRef.current.focus();
+      }
+    }
+  }, [race.status, startTime]);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const { sendMessage, addMessageHandler, removeMessageHandler } = useWebSocket();
 
@@ -27,6 +41,7 @@ export function RaceInterface({ race, participants, currentPlayerId, onLeaveRace
 
   useEffect(() => {
     const handleRaceStarted = () => {
+      console.log('Race started event received');
       setRaceStarted(true);
       setStartTime(Date.now());
       if (textareaRef.current) {
@@ -35,7 +50,14 @@ export function RaceInterface({ race, participants, currentPlayerId, onLeaveRace
     };
 
     const handleRaceUpdate = (data: { race: Race; participants: RaceParticipant[] }) => {
-      // Race updates are handled by parent component
+      console.log('Race update received:', data.race.status);
+      if (data.race.status === 'active' && !raceStarted) {
+        setRaceStarted(true);
+        setStartTime(Date.now());
+        if (textareaRef.current) {
+          textareaRef.current.focus();
+        }
+      }
     };
 
     addMessageHandler('race_started', handleRaceStarted);
@@ -45,7 +67,7 @@ export function RaceInterface({ race, participants, currentPlayerId, onLeaveRace
       removeMessageHandler('race_started');
       removeMessageHandler('race_update');
     };
-  }, [addMessageHandler, removeMessageHandler]);
+  }, [addMessageHandler, removeMessageHandler, raceStarted]);
 
   // Timer effect
   useEffect(() => {
